@@ -9,6 +9,6 @@ const { protect, authorize } = require('../middleware/authMiddleware');
 
 router.post('/', protect, authorize('Club Coordinator', 'Admin'), createCollaboration);
 router.get('/', protect, getCollaborations);
-router.put('/:id/respond', protect, authorize('Club Coordinator', 'Admin'), respondCollaboration);
+router.put('/:id/respond', protect, authorize('Admin'), respondCollaboration);
 
 module.exports = router;

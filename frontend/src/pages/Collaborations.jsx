@@ -153,10 +153,7 @@ const Collaborations = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {collabs.map((collab) => {
             const sc = statusConfig[collab.status] || statusConfig.Pending;
-            const isRecipientCoordinator =
-              user.role === 'Admin' ||
-              collab.toClub?.coordinator?._id === user._id ||
-              collab.toClub?.coordinator === user._id;
+            const canRespond = user.role === 'Admin';
 
             return (
               <div key={collab._id} className="collab-card">
@@ -217,7 +214,7 @@ const Collaborations = () => {
                 </div>
 
                 {/* Action Buttons */}
-                {collab.status === 'Pending' && isRecipientCoordinator && (
+                {collab.status === 'Pending' && canRespond && (
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.625rem' }}>
                     <button
                       onClick={() => setResponseModal({ collabId: collab._id, status: 'Accepted' })}

@@ -1,5 +1,6 @@
 const Collaboration = require('../models/Collaboration');
 const Club = require('../models/Club');
+const { isValidObjectId, sendControllerError } = require('../utils/apiError');
 
 // @route   POST /api/collaborations
 // @desc    Send a collaboration request to another club
@@ -7,6 +8,10 @@ const Club = require('../models/Club');
 exports.createCollaboration = async (req, res) => {
   try {
     const { fromClubId, toClubId, proposedEventTitle, description, proposedDate } = req.body;
+
+    if (!isValidObjectId(fromClubId) || !isValidObjectId(toClubId)) {
+      return res.status(400).json({ success: false, message: 'Invalid club identifier' });
+    }
 
     if (fromClubId === toClubId) {
       return res.status(400).json({ success: false, message: 'Cannot collaborate with your own club' });
@@ -40,7 +45,7 @@ exports.createCollaboration = async (req, res) => {
       message: 'Collaboration proposal sent successfully!',
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -72,15 +77,19 @@ exports.getCollaborations = async (req, res) => {
 
     res.json({ success: true, count: collabs.length, data: collabs });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
 // @route   PUT /api/collaborations/:id/respond
 // @desc    Accept or reject a collaboration request
-// @access  Private (Club Coordinator, Admin)
+// @access  Private (Admin)
 exports.respondCollaboration = async (req, res) => {
   try {
+    if (!isValidObjectId(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid collaboration identifier' });
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ success: false, message: 'Only administrators can respond to collaboration requests' });
+    }
     const { status, responseMessage } = req.body;
 
     if (!['Accepted', 'Rejected'].includes(status)) {
@@ -95,17 +104,6 @@ exports.respondCollaboration = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Collaboration request not found' });
     }
 
-    // Must be coordinator of the receiving club or admin
-    if (
-      req.user.role !== 'Admin' &&
-      collab.toClub.coordinator.toString() !== req.user._id.toString()
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: 'Only the recipient club coordinator or admin can respond to this collaboration',
-      });
-    }
-
     collab.status = status;
     collab.responseMessage = responseMessage || '';
     await collab.save();
@@ -116,6 +114,6 @@ exports.respondCollaboration = async (req, res) => {
       message: `Collaboration request has been ${status.toLowerCase()}!`,
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
