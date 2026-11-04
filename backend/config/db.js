@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
-// In-Memory Document Store providing standard MongoDB-like query interface
+// Legacy in-memory store retained only for backwards-compatible module imports.
+// The application server never routes production requests to this store.
 class MemoryStore {
   constructor() {
     this.collections = {
@@ -21,19 +22,49 @@ class MemoryStore {
 
 const memoryStore = new MemoryStore();
 
+let cachedPromise = null;
+
 const connectDB = async () => {
-  let mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/student_club_platform';
+  // If already connected, return immediately (serverless connection reuse)
+  if (mongoose.connection.readyState === 1) {
+    global.databaseReady = true;
+    return true;
+  }
+
+  // If a connection attempt is currently in-flight, await it
+  if (cachedPromise) {
+    try {
+      await cachedPromise;
+      global.databaseReady = mongoose.connection.readyState === 1;
+      return global.databaseReady;
+    } catch {
+      cachedPromise = null;
+    }
+  }
+
+  const mongoUri = process.env.MONGODB_URI;
+
+  if (!mongoUri) {
+    console.error('[MongoDB] MONGODB_URI is required. Database-backed routes are unavailable.');
+    global.databaseReady = false;
+    return false;
+  }
 
   try {
-    console.log(`[MongoDB] Attempting connection to MongoDB at: ${mongoUri}`);
-    await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 2000 });
+    console.log('[MongoDB] Attempting connection to MongoDB...');
+    cachedPromise = mongoose.connect(mongoUri, {
+      serverSelectionTimeoutMS: 8000,
+    });
+    await cachedPromise;
     console.log(`[MongoDB] Connected successfully to live MongoDB instance!`);
+    global.databaseReady = true;
     global.usingMemoryDb = false;
+    return true;
   } catch (error) {
-    console.warn(`[MongoDB] Notice: Could not connect to local MongoDB (${error.message}).`);
-    console.log(`[Database] Activating fast zero-overhead In-Memory Store with Seed Data.`);
-    console.log(`[Database] Full CRUD operations (Auth, Clubs, Events, Memberships, Collabs, Notices) are completely operational.`);
-    global.usingMemoryDb = true;
+    console.error(`[MongoDB] Connection failed: ${error.message}`);
+    cachedPromise = null;
+    global.databaseReady = false;
+    return false;
   }
 };
 

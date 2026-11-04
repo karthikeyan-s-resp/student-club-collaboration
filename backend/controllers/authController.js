@@ -1,11 +1,15 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { sendControllerError } = require('../utils/apiError');
 
 const generateToken = (id) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET must be configured before signing tokens');
+  }
   return jwt.sign(
     { id },
-    process.env.JWT_SECRET || 'super_secret_jwt_key_college_student_clubs_2026',
+    process.env.JWT_SECRET,
     { expiresIn: '30d' }
   );
 };
@@ -15,7 +19,7 @@ const generateToken = (id) => {
 // @access  Public
 exports.registerUser = async (req, res) => {
   try {
-    const { name, email, password, role, department, year } = req.body;
+    const { name, email, password, department, year } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: 'Please provide name, email, and password' });
@@ -34,7 +38,9 @@ exports.registerUser = async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role: role || 'Student',
+      // Roles are assigned by an administrator after registration. Never trust
+      // a role supplied by a public registration request.
+      role: 'Student',
       department: department || 'Engineering',
       year: year || '1st Year',
     });
@@ -53,7 +59,7 @@ exports.registerUser = async (req, res) => {
       message: 'Registration successful!',
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -92,7 +98,7 @@ exports.loginUser = async (req, res) => {
       message: 'Login successful!',
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -104,6 +110,6 @@ exports.getCurrentUser = async (req, res) => {
     const user = await User.findById(req.user.id).select('-password');
     res.json({ success: true, data: user });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };

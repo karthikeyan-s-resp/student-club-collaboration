@@ -1,9 +1,18 @@
 import axios from 'axios';
 
+// Normalize VITE_API_URL so it reliably routes to the Express API:
+// 1. If not set, falls back to '/api' for Vite local proxying.
+// 2. Trims any trailing slashes.
+// 3. Appends '/api' if not already present.
+const getBaseURL = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (!envUrl) return '/api';
+  const trimmed = envUrl.trim().replace(/\/+$/, '');
+  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+};
+
 const API = axios.create({
-  // A relative URL lets Vite proxy development requests to port 5000 and
-  // can be overridden for a deployed backend with VITE_API_URL.
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: getBaseURL(),
 });
 
 // Add auth token automatically to every request if available

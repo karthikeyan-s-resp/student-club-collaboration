@@ -1,5 +1,6 @@
 const Announcement = require('../models/Announcement');
 const Club = require('../models/Club');
+const { isValidObjectId, sendControllerError } = require('../utils/apiError');
 
 // @route   GET /api/announcements
 // @desc    Get all announcements with optional club filter
@@ -17,7 +18,7 @@ exports.getAllAnnouncements = async (req, res) => {
 
     res.json({ success: true, count: announcements.length, data: announcements });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -28,6 +29,7 @@ exports.createAnnouncement = async (req, res) => {
   try {
     const { title, content, club, priority } = req.body;
 
+    if (!isValidObjectId(club)) return res.status(400).json({ success: false, message: 'Invalid club identifier' });
     const targetClub = await Club.findById(club);
     if (!targetClub) {
       return res.status(404).json({ success: false, message: 'Club not found' });
@@ -51,7 +53,7 @@ exports.createAnnouncement = async (req, res) => {
       message: 'Announcement published successfully!',
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -60,6 +62,7 @@ exports.createAnnouncement = async (req, res) => {
 // @access  Private (Club Coordinator, Admin)
 exports.deleteAnnouncement = async (req, res) => {
   try {
+    if (!isValidObjectId(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid announcement identifier' });
     const announcement = await Announcement.findById(req.params.id);
     if (!announcement) {
       return res.status(404).json({ success: false, message: 'Announcement not found' });
@@ -72,6 +75,6 @@ exports.deleteAnnouncement = async (req, res) => {
     await Announcement.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'Announcement deleted successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };

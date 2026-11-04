@@ -4,6 +4,7 @@ const Event = require('../models/Event');
 const Membership = require('../models/Membership');
 const Collaboration = require('../models/Collaboration');
 const EventRegistration = require('../models/EventRegistration');
+const { isValidObjectId, sendControllerError } = require('../utils/apiError');
 
 // @route   GET /api/dashboard/stats
 // @desc    Get dashboard metrics based on role
@@ -66,7 +67,7 @@ exports.getDashboardStats = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -78,7 +79,7 @@ exports.getAdminUsers = async (req, res) => {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
     res.json({ success: true, count: users.length, data: users });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -87,14 +88,18 @@ exports.getAdminUsers = async (req, res) => {
 // @access  Private (Admin)
 exports.updateUserRole = async (req, res) => {
   try {
+    if (!isValidObjectId(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid user identifier' });
     const { role } = req.body;
     if (!['Student', 'Club Coordinator', 'Admin'].includes(role)) {
       return res.status(400).json({ success: false, message: 'Invalid role' });
     }
 
     const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true }).select('-password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
     res.json({ success: true, data: user, message: 'User role updated successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };

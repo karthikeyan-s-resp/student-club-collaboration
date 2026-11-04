@@ -1,8 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const mongoose = require('mongoose');
 const { connectDB, memoryStore } = require('./config/db');
-const { initMockData } = require('./config/mockData');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -20,27 +20,72 @@ mongoApi.use('/dashboard', require('./routes/dashboardRoutes'));
 
 dotenv.config();
 
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET must be configured before starting the API');
+}
+
 const app = express();
-app.use(cors());
+
+// Allowed CORS origins: environment variables, vercel.app domains, and local dev
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  process.env.FRONTEND_URL,
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173',
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow server-to-server, curl, Postman, and non-browser requests
+      if (!origin) return callback(null, true);
+
+      // Check configured frontend origin(s)
+      const isConfigured = allowedOrigins.some(
+        (allowed) => allowed.replace(/\/+$/, '') === origin.replace(/\/+$/, '')
+      );
+      if (isConfigured) return callback(null, true);
+
+      // Allow any Vercel preview or production deployment domain (*.vercel.app)
+      if (/^https:\/\/.*\.vercel\.app$/.test(origin)) {
+        return callback(null, true);
+      }
+
+      // Permissive fallback for other origins
+      return callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+
 app.use(express.json());
 
-// Until the connection attempt finishes, use the safe local fallback. This
-// prevents Mongoose query buffering from delaying the first HTTP request.
-global.usingMemoryDb = true;
-app.use('/api', (req, res, next) => {
-  if (!global.usingMemoryDb) return mongoApi(req, res, next);
-  next();
+global.databaseReady = false;
+
+// Serverless-ready DB gate: awaits connection if not yet established
+app.use('/api', async (req, res, next) => {
+  if (req.path === '/health') return next();
+
+  if (mongoose.connection.readyState !== 1) {
+    const connected = await connectDB();
+    if (!connected) {
+      return res.status(503).json({ success: false, message: 'Database service is unavailable' });
+    }
+  }
+
+  return mongoApi(req, res, next);
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_college_student_clubs_2026';
+const JWT_SECRET = process.env.JWT_SECRET;
 
-// Initialize DB & Seed
-(async () => {
-  await connectDB();
-  if (global.usingMemoryDb) {
-    await initMockData(memoryStore);
-  }
-})();
+// Connect DB immediately on startup
+connectDB().catch((err) => {
+  console.warn('[MongoDB] Initial connection attempt deferred:', err.message);
+});
 
 // Helper to authenticate token
 const auth = (req, res, next) => {
@@ -77,7 +122,7 @@ const authorize = (...roles) => (req, res, next) => {
 // -------------------------------------------------------------
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { name, email, password, role, department, year } = req.body;
+    const { name, email, password, department, year } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
@@ -94,7 +139,7 @@ app.post('/api/auth/register', async (req, res) => {
       name,
       email: email.toLowerCase(),
       password: hashedPassword,
-      role: role || 'Student',
+      role: 'Student',
       department: department || 'Engineering',
       year: year || '1st Year',
       createdAt: new Date(),
@@ -455,17 +500,36 @@ app.put('/api/dashboard/admin/users/:id/role', auth, authorize('Admin'), (req, r
   res.json({ success: true, data: user, message: 'User role updated successfully' });
 });
 
-// Health check
-app.get('/api/health', (req, res) => {
+// Root and health endpoints
+app.get('/', (req, res) => {
+  const isConnected = mongoose.connection.readyState === 1;
   res.json({
-    status: 'online',
+    status: isConnected ? 'online' : 'degraded',
     message: 'Student Club Collaboration Platform API active',
-    mode: global.usingMemoryDb ? 'in-memory-adapter' : 'mongodb',
+    database: isConnected ? 'connected' : 'disconnected',
+    timestamp: new Date(),
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.redirect('/api/health');
+});
+
+app.get('/api/health', (req, res) => {
+  const isConnected = mongoose.connection.readyState === 1;
+  res.json({
+    status: isConnected ? 'online' : 'degraded',
+    message: 'Student Club Collaboration Platform API active',
+    mode: isConnected ? 'mongodb' : 'unavailable',
     timestamp: new Date(),
   });
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Backend server listening on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Backend server listening on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

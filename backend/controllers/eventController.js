@@ -1,6 +1,7 @@
 const Event = require('../models/Event');
 const EventRegistration = require('../models/EventRegistration');
 const Club = require('../models/Club');
+const { isValidObjectId, sendControllerError } = require('../utils/apiError');
 
 // @route   GET /api/events
 // @desc    Get all events (upcoming, past filterable)
@@ -53,7 +54,7 @@ exports.getAllEvents = async (req, res) => {
 
     res.json({ success: true, count: enrichedEvents.length, data: enrichedEvents });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -62,6 +63,7 @@ exports.getAllEvents = async (req, res) => {
 // @access  Public
 exports.getEventById = async (req, res) => {
   try {
+    if (!isValidObjectId(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid event identifier' });
     const event = await Event.findById(req.params.id)
       .populate('club')
       .populate('createdBy', 'name email');
@@ -77,7 +79,7 @@ exports.getEventById = async (req, res) => {
 
     res.json({ success: true, data: { ...event.toObject(), registeredCount } });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -89,6 +91,7 @@ exports.createEvent = async (req, res) => {
     const { title, description, club, date, time, venue, category, maxParticipants, image } = req.body;
 
     // Check if user is coordinator of this club or Admin
+    if (!isValidObjectId(club)) return res.status(400).json({ success: false, message: 'Invalid club identifier' });
     const targetClub = await Club.findById(club);
     if (!targetClub) {
       return res.status(404).json({ success: false, message: 'Club not found' });
@@ -113,7 +116,7 @@ exports.createEvent = async (req, res) => {
 
     res.status(201).json({ success: true, data: newEvent, message: 'Event created successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -122,6 +125,7 @@ exports.createEvent = async (req, res) => {
 // @access  Private (Club Coordinator, Admin)
 exports.updateEvent = async (req, res) => {
   try {
+    if (!isValidObjectId(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid event identifier' });
     let event = await Event.findById(req.params.id);
     if (!event) {
       return res.status(404).json({ success: false, message: 'Event not found' });
@@ -139,7 +143,7 @@ exports.updateEvent = async (req, res) => {
     event = await Event.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     res.json({ success: true, data: event, message: 'Event updated successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -148,6 +152,7 @@ exports.updateEvent = async (req, res) => {
 // @access  Private (Club Coordinator, Admin)
 exports.deleteEvent = async (req, res) => {
   try {
+    if (!isValidObjectId(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid event identifier' });
     const event = await Event.findById(req.params.id);
     if (!event) {
       return res.status(404).json({ success: false, message: 'Event not found' });
@@ -167,7 +172,7 @@ exports.deleteEvent = async (req, res) => {
 
     res.json({ success: true, message: 'Event deleted successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -177,6 +182,7 @@ exports.deleteEvent = async (req, res) => {
 exports.registerForEvent = async (req, res) => {
   try {
     const eventId = req.params.id;
+    if (!isValidObjectId(eventId)) return res.status(400).json({ success: false, message: 'Invalid event identifier' });
     const event = await Event.findById(eventId);
     if (!event) {
       return res.status(404).json({ success: false, message: 'Event not found' });
@@ -212,7 +218,7 @@ exports.registerForEvent = async (req, res) => {
       message: 'Successfully registered for event! Ticket confirmed.',
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -230,6 +236,6 @@ exports.getMyRegistrations = async (req, res) => {
 
     res.json({ success: true, count: registrations.length, data: registrations });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };

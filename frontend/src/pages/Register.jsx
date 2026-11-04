@@ -8,7 +8,6 @@ const Register = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'Student',
     department: 'Computer Science',
     year: '1st Year',
   });
@@ -33,7 +32,6 @@ const Register = () => {
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        role: formData.role,
         department: formData.department,
         year: formData.year,
       });
@@ -121,15 +119,7 @@ const Register = () => {
                   value={formData.email} onChange={handleChange} required />
               </div>
 
-              <div className="col-6">
-                <label className="form-label">Role</label>
-                <select className="form-select" name="role" value={formData.role} onChange={handleChange}>
-                  <option value="Student">Student</option>
-                  <option value="Club Coordinator">Club Coordinator</option>
-                </select>
-              </div>
-
-              <div className="col-6">
+              <div className="col-12">
                 <label className="form-label">Academic Year</label>
                 <select className="form-select" name="year" value={formData.year} onChange={handleChange}>
                   <option value="1st Year">1st Year</option>

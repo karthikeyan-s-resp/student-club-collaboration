@@ -2,6 +2,9 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 const protect = async (req, res, next) => {
+  if (!process.env.JWT_SECRET) {
+    return res.status(500).json({ success: false, message: 'Server configuration error: JWT_SECRET must be configured' });
+  }
   let token;
 
   if (
@@ -12,7 +15,7 @@ const protect = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(
         token,
-        process.env.JWT_SECRET || 'super_secret_jwt_key_college_student_clubs_2026'
+        process.env.JWT_SECRET
       );
       req.user = await User.findById(decoded.id).select('-password');
       if (!req.user) {

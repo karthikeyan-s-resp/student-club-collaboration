@@ -1,5 +1,6 @@
 const Membership = require('../models/Membership');
 const Club = require('../models/Club');
+const { isValidObjectId, sendControllerError } = require('../utils/apiError');
 
 // @route   POST /api/memberships/request
 // @desc    Student requests to join a club
@@ -8,6 +9,11 @@ exports.requestMembership = async (req, res) => {
   try {
     const { clubId, notes } = req.body;
 
+    if (!clubId) {
+      return res.status(400).json({ success: false, message: 'Please provide a club to join' });
+    }
+
+    if (!isValidObjectId(clubId)) return res.status(400).json({ success: false, message: 'Invalid club identifier' });
     const club = await Club.findById(clubId);
     if (!club) {
       return res.status(404).json({ success: false, message: 'Club not found' });
@@ -34,7 +40,7 @@ exports.requestMembership = async (req, res) => {
       message: 'Membership request submitted successfully!',
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -49,7 +55,7 @@ exports.getMyMemberships = async (req, res) => {
 
     res.json({ success: true, count: memberships.length, data: memberships });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -58,6 +64,7 @@ exports.getMyMemberships = async (req, res) => {
 // @access  Private (Coordinator, Admin)
 exports.getClubMemberships = async (req, res) => {
   try {
+    if (!isValidObjectId(req.params.clubId)) return res.status(400).json({ success: false, message: 'Invalid club identifier' });
     const club = await Club.findById(req.params.clubId);
     if (!club) {
       return res.status(404).json({ success: false, message: 'Club not found' });
@@ -73,7 +80,7 @@ exports.getClubMemberships = async (req, res) => {
 
     res.json({ success: true, count: memberships.length, data: memberships });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
 
@@ -82,6 +89,7 @@ exports.getClubMemberships = async (req, res) => {
 // @access  Private (Coordinator, Admin)
 exports.updateMembershipStatus = async (req, res) => {
   try {
+    if (!isValidObjectId(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid membership identifier' });
     const { status, roleInClub } = req.body;
 
     if (!['Approved', 'Rejected', 'Pending'].includes(status)) {
@@ -110,6 +118,6 @@ exports.updateMembershipStatus = async (req, res) => {
       message: `Membership request ${status.toLowerCase()} successfully`,
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    sendControllerError(res, error);
   }
 };
